@@ -1,7 +1,7 @@
 import os
 import requests
 
-directory = '../resources/upload_images/'
+directory = './test_input'
 images = dict()
 path = ""
 for filename in os.listdir(directory):

@@ -102,3 +102,9 @@ dist
 
 # TernJS port file
 .tern-port
+
+
+# Project Specific
+secrets.js
+
+/test_input
