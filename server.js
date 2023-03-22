@@ -81,82 +81,41 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   console.log("Item in hand for IN stage: ", itemInHandIntoFridge);
   console.log("Item in hand for OUT stage: ", itemInHandOutOfFridge);
 
-  if (itemInHandIntoFridge === itemInHandOutOfFridge) {
-    console.error(
-      "Both stages of item going into fridge and out of fridge: ",
-      itemInHandIntoFridge
-    );
-    res.status(500).send();
-  } else if (itemInHandIntoFridge) {
-  }
-  // const inHandPreds = await Promise.all(
-  //   files.map((file) => ({
-  //     in_out: file.fieldname.split(/[_/.]+/)[3], // "IN" or "OUT"
-  //     in_hand_pred: predictor.classifyImage(
-  //       projectID,
-  //       publishIterationName,
-  //       file.buffer
-  //     ),
-  //   }))
-  // );
+  if (itemInHandIntoFridge === itemInHandOutOfFridge)
+    return res
+      .status(500)
+      .send(
+        `ERROR: Both stages of item going into fridge and out of fridge: ${itemInHandIntoFridge}`
+      );
 
-  // // let handIntoFridge = [];
-  // // let handOutOfFridge = [];
-  // inHandPreds.forEach(({ in_out }, i) => {
-  //   switch (in_out) {
-  //     case "IN":
-  //       handIntoFridge.push(inHandPreds[i]);
-  //       break;
-  //     case "OUT":
-  //       handOutOfFridge.push();
-  //   }
-  // });
-  // console.log(files[0].fieldname.split(/[_/.]+/));
+  const time = new Date(
+    parseInt(files[0].fieldname.split(/[_/.]+/)[1]) * 1000
+  ).toISOString();
+  console.log(time);
 
-  // // results key: "IN" or "OUT"
-  // const results = {};
-  // await Promise.all(
-  //   files.map(async (file) => {
-  //     results[file.fieldname.split(/[_/.]+/)[3]] = {
-  //       time: file.fieldname.split(/[_/.]+/)[1], // Milliseconds
-  //       in_hand_pred: await predictor.classifyImage(
-  //         projectID,
-  //         publishIterationName,
-  //         file.buffer
-  //       ),
-  //       food_pred: await predictor.classifyImage(
-  //         projectID,
-  //         publishIterationName,
-  //         file.buffer
-  //       ),
-  //     };
-  //   })
-  // );
+  // Classify the food item in hand
+  const foodFrames = itemInHandIntoFridge ? handIntoFridge : handOutOfFridge;
+  const foodPreds = await Promise.all(
+    foodFrames.map((buf) =>
+      predictor.classifyImage(foodClassifierProjID, foodClassifierIterName, buf)
+    )
+  );
+  const maxFoodPred = foodPreds.reduce(
+    (prev, current) =>
+      current.predictions[0].probability > prev.probability
+        ? {
+            probability: current.predictions[0].probability,
+            tagName: current.predictions[0].tagName,
+          }
+        : prev,
+    { probability: 0, tagName: "" }
+  );
 
-  // // Show results
-  // // TODO: Change the expected labels to
-  // if (
-  //   results.IN.in_hand_pred.predictions[0] === "item_in_hand" &&
-  //   results.OUT.in_hand_pred.predictions[0] === "item_not_in_hand"
-  // )
-  //   // item placed in fridge
-  //   in_or_out = "IN";
-  // else if (
-  //   results.IN.in_hand_pred.predictions[0] === "item_not_in_hand" &&
-  //   results.OUT.in_hand_pred.predictions[0] === "item_in_hand"
-  // )
-  //   in_or_out = "IN";
-  // else res.status(500);
-  // top_preds = {};
-  // results.forEach(({ name, in_hand_pred, food_pred }) => {
-  //   // if ()
-  //   top_preds[name] = {
-  //     in_hand_pred: in_hand_pred.predictions[0],
-  //     food_pred: food_pred.predictions[0],
-  //   };
-  // });
-
-  res.send("Upload images\n");
+  res.send(
+    `${maxFoodPred.tagName} ${
+      itemInHandIntoFridge ? "placed in" : "taken out of"
+    } fridge with probability ${maxFoodPred.probability}`
+  );
 });
 
 app.listen(port, () => {
