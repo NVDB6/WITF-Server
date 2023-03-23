@@ -1,10 +1,31 @@
 const express = require("express");
 const multer = require("multer");
+const log4js = require("log4js");
 const PredictionApi = require("@azure/cognitiveservices-customvision-prediction");
 const msRest = require("@azure/ms-rest-js");
 const app = express();
 const upload = multer();
 const port = 3000;
+
+// Configure log4js to write to a file called log.txt
+log4js.configure({
+  appenders: {
+    file: { type: "file", filename: "server.log" },
+    out: { type: "stdout" }
+  },
+  categories: {
+    default: {
+      appenders: ["file", "out"], level: "all",
+      enableCallStack: true
+    }
+  }
+});
+
+// Get a logger instance
+const logger = log4js.getLogger();
+
+logger.info("Starting server...");
+
 
 const predEndpoint =
   "https://nvdfridge-prediction.cognitiveservices.azure.com/";
@@ -41,22 +62,26 @@ const itemInHand = (itemInHandPreds) => {
       predValues[pred.tagName].push(pred.probability)
     )
   );
+  logger.debug('IIH Predictions', predValues);
   let maxPredValues = { Empty: 0, "Non-empty": 0 };
   Object.keys(maxPredValues).forEach(
     (key) => (maxPredValues[key] = Math.max(...predValues[key]))
   );
+  logger.debug('IIH Max Predictions', maxPredValues);
   return maxPredValues["Non-empty"] > maxPredValues["Empty"];
 };
 
 app.post("/upload-images", upload.any(), async (req, res) => {
   const files = req.files;
-  console.assert(
-    files.length === FRAMES_PER_ACTION * 2,
-    `Invalid number of images passed to the upload-images endpoint: expected 2, got ${files.length}`
-  );
+
+  if (files.length !== FRAMES_PER_ACTION * 2) {
+    logger.error(`Invalid number of images passed to the upload-images endpoint: expected ${FRAMES_PER_ACTION * 2}, got ${files.length}`)
+  }
+
   const { IN: handIntoFridge, OUT: handOutOfFridge } = files.reduce(
     (result, element) => {
-      result[element.fieldname.split(/[_/.]+/)[3]].push(element.buffer);
+      logger.debug(`Collecting image: ${element.originalname}`);
+      result[element.originalname.split('_')[3]].push(element.buffer);
       return result;
     },
     { IN: [], OUT: [] }
@@ -78,20 +103,17 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   const itemInHandOutOfFridge = itemInHand(
     itemInHandPreds.slice(FRAMES_PER_ACTION, -1)
   );
-  console.log("Item in hand for IN stage: ", itemInHandIntoFridge);
-  console.log("Item in hand for OUT stage: ", itemInHandOutOfFridge);
 
-  if (itemInHandIntoFridge === itemInHandOutOfFridge)
+  logger.debug(`IIH IN: ${itemInHandIntoFridge}  |  IIH OUT: ${itemInHandOutOfFridge}`);
+
+  if (itemInHandIntoFridge === itemInHandOutOfFridge) {
+    logger.error("IIH Classification is the same for both actions");
     return res
       .status(500)
       .send(
         `ERROR: Both stages of item going into fridge and out of fridge: ${itemInHandIntoFridge}`
       );
-
-  const time = new Date(
-    parseInt(files[0].fieldname.split(/[_/.]+/)[1]) * 1000
-  ).toISOString();
-  console.log(time);
+  }
 
   // Classify the food item in hand
   const foodFrames = itemInHandIntoFridge ? handIntoFridge : handOutOfFridge;
@@ -104,16 +126,21 @@ app.post("/upload-images", upload.any(), async (req, res) => {
     (prev, current) =>
       current.predictions[0].probability > prev.probability
         ? {
-            probability: current.predictions[0].probability,
-            tagName: current.predictions[0].tagName,
-          }
+          probability: current.predictions[0].probability,
+          tagName: current.predictions[0].tagName,
+        }
         : prev,
     { probability: 0, tagName: "" }
   );
 
+  const time = new Date(
+    parseInt(files[0].fieldname.split("_")[1]) * 1000
+  ).toISOString();
+
+  logger.info(`${maxFoodPred.tagName} placed ${itemInHandIntoFridge ? "placed in" : "taken out of"} at ${time}`);
+
   res.send(
-    `${maxFoodPred.tagName} ${
-      itemInHandIntoFridge ? "placed in" : "taken out of"
+    `${maxFoodPred.tagName} ${itemInHandIntoFridge ? "placed in" : "taken out of"
     } fridge with probability ${maxFoodPred.probability}`
   );
 });
