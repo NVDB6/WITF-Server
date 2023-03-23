@@ -122,6 +122,8 @@ app.post("/upload-images", upload.any(), async (req, res) => {
       predictor.classifyImage(foodClassifierProjID, foodClassifierIterName, buf)
     )
   );
+
+  foodPreds.forEach((foodPred) => logger.debug("Food Prediction", foodPred.predictions));
   const maxFoodPred = foodPreds.reduce(
     (prev, current) =>
       current.predictions[0].probability > prev.probability
@@ -136,6 +138,7 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   const time = new Date(
     parseInt(files[0].fieldname.split("_")[1]) * 1000
   ).toISOString();
+
 
   logger.info(`${maxFoodPred.tagName} ${itemInHandIntoFridge ? "placed in" : "taken out of"} at ${time}`);
 
