@@ -137,11 +137,10 @@ app.post("/upload-images", upload.any(), async (req, res) => {
     parseInt(files[0].fieldname.split("_")[1]) * 1000
   ).toISOString();
 
-  logger.info(`${maxFoodPred.tagName} placed ${itemInHandIntoFridge ? "placed in" : "taken out of"} at ${time}`);
+  logger.info(`${maxFoodPred.tagName} ${itemInHandIntoFridge ? "placed in" : "taken out of"} at ${time}`);
 
   res.send(
-    `${maxFoodPred.tagName} ${itemInHandIntoFridge ? "placed in" : "taken out of"
-    } fridge with probability ${maxFoodPred.probability}`
+    `${maxFoodPred.tagName} ${itemInHandIntoFridge ? "placed in" : "taken out of"} fridge with probability ${maxFoodPred.probability}`
   );
 });
 
