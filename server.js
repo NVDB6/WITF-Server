@@ -103,8 +103,8 @@ app.post("/upload-images", upload.any(), async (req, res) => {
       )
     );
   } catch (error) {
-    logger.error("Azure prediction failed: ", error);
-    return res.status(500).send(error);
+    logger.error("Azure prediction failed: ", error.message);
+    return res.status(500).send(error.message);
   }
 
   const itemInHandIntoFridge = itemInHand(
@@ -143,8 +143,8 @@ app.post("/upload-images", upload.any(), async (req, res) => {
       )
     );
   } catch (error) {
-    logger.error("Azure prediction failed: ", error);
-    return res.status(500).send(error);
+    logger.error("Azure prediction failed: ", error.message);
+    return res.status(500).send(error.message);
   }
 
   foodPreds.forEach((foodPred) =>
