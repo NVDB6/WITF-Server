@@ -11,21 +11,21 @@ const port = 3000;
 log4js.configure({
   appenders: {
     file: { type: "file", filename: "server.log" },
-    out: { type: "stdout" }
+    out: { type: "stdout" },
   },
   categories: {
     default: {
-      appenders: ["file", "out"], level: "all",
-      enableCallStack: true
-    }
-  }
+      appenders: ["file", "out"],
+      level: "info",
+      enableCallStack: true,
+    },
+  },
 });
 
 // Get a logger instance
 const logger = log4js.getLogger();
 
 logger.info("Starting server...");
-
 
 const predEndpoint =
   "https://nvdfridge-prediction.cognitiveservices.azure.com/";
@@ -62,12 +62,12 @@ const itemInHand = (itemInHandPreds) => {
       predValues[pred.tagName].push(pred.probability)
     )
   );
-  logger.debug('IIH Predictions', predValues);
+  logger.debug("IIH Predictions", predValues);
   let maxPredValues = { Empty: 0, "Non-empty": 0 };
   Object.keys(maxPredValues).forEach(
     (key) => (maxPredValues[key] = Math.max(...predValues[key]))
   );
-  logger.debug('IIH Max Predictions', maxPredValues);
+  logger.debug("IIH Max Predictions", maxPredValues);
   return maxPredValues["Non-empty"] > maxPredValues["Empty"];
 };
 
@@ -75,27 +75,37 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   const files = req.files;
 
   if (files.length !== FRAMES_PER_ACTION * 2) {
-    logger.error(`Invalid number of images passed to the upload-images endpoint: expected ${FRAMES_PER_ACTION * 2}, got ${files.length}`)
+    logger.error(
+      `Invalid number of images passed to the upload-images endpoint: expected ${
+        FRAMES_PER_ACTION * 2
+      }, got ${files.length}`
+    );
   }
 
   const { IN: handIntoFridge, OUT: handOutOfFridge } = files.reduce(
     (result, element) => {
       logger.debug(`Collecting image: ${element.originalname}`);
-      result[element.originalname.split('_')[3]].push(element.buffer);
+      result[element.originalname.split("_")[3]].push(element.buffer);
       return result;
     },
     { IN: [], OUT: [] }
   );
 
-  const itemInHandPreds = await Promise.all(
-    [...handIntoFridge, ...handOutOfFridge].map((buf) =>
-      predictor.classifyImage(
-        inHandClassifierProjID,
-        inHandClassifierIterName,
-        buf
+  let itemInHandPreds;
+  try {
+    itemInHandPreds = await Promise.all(
+      [...handIntoFridge, ...handOutOfFridge].map((buf) =>
+        predictor.classifyImage(
+          inHandClassifierProjID,
+          inHandClassifierIterName,
+          buf
+        )
       )
-    )
-  );
+    );
+  } catch (error) {
+    logger.error("Azure prediction failed: ", error);
+    return res.status(500).send(error);
+  }
 
   const itemInHandIntoFridge = itemInHand(
     itemInHandPreds.slice(0, FRAMES_PER_ACTION)
@@ -104,10 +114,14 @@ app.post("/upload-images", upload.any(), async (req, res) => {
     itemInHandPreds.slice(FRAMES_PER_ACTION, -1)
   );
 
-  logger.debug(`IIH IN: ${itemInHandIntoFridge}  |  IIH OUT: ${itemInHandOutOfFridge}`);
+  logger.debug(
+    `IIH IN: ${itemInHandIntoFridge}  |  IIH OUT: ${itemInHandOutOfFridge}`
+  );
 
   if (itemInHandIntoFridge === itemInHandOutOfFridge) {
-    logger.error("IIH Classification is the same for both actions");
+    logger.error(
+      `IIH Classification is the same for both actions: ${itemInHandIntoFridge}`
+    );
     return res
       .status(500)
       .send(
@@ -117,33 +131,50 @@ app.post("/upload-images", upload.any(), async (req, res) => {
 
   // Classify the food item in hand
   const foodFrames = itemInHandIntoFridge ? handIntoFridge : handOutOfFridge;
-  const foodPreds = await Promise.all(
-    foodFrames.map((buf) =>
-      predictor.classifyImage(foodClassifierProjID, foodClassifierIterName, buf)
-    )
-  );
+  let foodPreds;
+  try {
+    foodPreds = await Promise.all(
+      foodFrames.map((buf) =>
+        predictor.classifyImage(
+          foodClassifierProjID,
+          foodClassifierIterName,
+          buf
+        )
+      )
+    );
+  } catch (error) {
+    logger.error("Azure prediction failed: ", error);
+    return res.status(500).send(error);
+  }
 
-  foodPreds.forEach((foodPred) => logger.debug("Food Prediction", foodPred.predictions));
+  foodPreds.forEach((foodPred) =>
+    logger.debug("Food Prediction", foodPred.predictions)
+  );
   const maxFoodPred = foodPreds.reduce(
     (prev, current) =>
       current.predictions[0].probability > prev.probability
         ? {
-          probability: current.predictions[0].probability,
-          tagName: current.predictions[0].tagName,
-        }
+            probability: current.predictions[0].probability,
+            tagName: current.predictions[0].tagName,
+          }
         : prev,
     { probability: 0, tagName: "" }
   );
 
   const time = new Date(
-    parseInt(files[0].fieldname.split("_")[1]) * 1000
+    parseInt(files[0].originalname.split("_")[1]) * 1000
   ).toISOString();
 
-
-  logger.info(`${maxFoodPred.tagName} ${itemInHandIntoFridge ? "placed in" : "taken out of"} at ${time}`);
+  logger.info(
+    `${maxFoodPred.tagName} ${
+      itemInHandIntoFridge ? "placed in" : "taken out of"
+    } fridge at ${time}`
+  );
 
   res.send(
-    `${maxFoodPred.tagName} ${itemInHandIntoFridge ? "placed in" : "taken out of"} fridge with probability ${maxFoodPred.probability}`
+    `${maxFoodPred.tagName} ${
+      itemInHandIntoFridge ? "placed in" : "taken out of"
+    } fridge with probability ${maxFoodPred.probability}`
   );
 });
 
