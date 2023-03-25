@@ -3,9 +3,18 @@ const multer = require("multer");
 const log4js = require("log4js");
 const PredictionApi = require("@azure/cognitiveservices-customvision-prediction");
 const msRest = require("@azure/ms-rest-js");
+// const admin = require("firebase-admin");
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
+const serviceAccount = require("./witf-ba054-firebase-adminsdk-g073x-912889a8c9.json");
+
 const app = express();
 const upload = multer();
 const port = 3000;
+const firebaseApp = initializeApp({
+  credential: cert(serviceAccount),
+});
+const db = getFirestore(firebaseApp);
 
 // Configure log4js to write to a file called log.txt
 log4js.configure({
@@ -35,7 +44,7 @@ const inHandClassifierProjID = "38cfb8e8-1637-4159-bd63-a51a33f010dc";
 const inHandClassifierIterName = "Iteration1";
 
 const foodClassifierProjID = "9cbf7b7d-2aaf-4bd9-a24e-9ded611d4784";
-const foodClassifierIterName = "Iteration3";
+const foodClassifierIterName = "Iteration4";
 
 const predictorCreds = new msRest.ApiKeyCredentials({
   inHeader: { "Prediction-key": predKey },
@@ -45,9 +54,6 @@ const predictor = new PredictionApi.PredictionAPIClient(
   predEndpoint
 );
 const FRAMES_PER_ACTION = 5;
-
-const db = [];
-const dbHeaders = ["time", "item", "in or out"];
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
@@ -161,15 +167,25 @@ app.post("/upload-images", upload.any(), async (req, res) => {
     { probability: 0, tagName: "" }
   );
 
-  const time = new Date(
-    parseInt(files[0].originalname.split("_")[1]) * 1000
-  ).toISOString();
+  const time = new Date(parseInt(files[0].originalname.split("_")[1]) * 1000);
 
   logger.info(
     `${maxFoodPred.tagName} ${
       itemInHandIntoFridge ? "placed in" : "taken out of"
-    } fridge at ${time}`
+    } fridge at ${time.toISOString()}`
   );
+
+  const docRef = db.collection("fridge-items").doc(time.getTime().toString());
+
+  try {
+    await docRef.set({
+      timeAction: time,
+      itemName: maxFoodPred.tagName,
+      intoFridge: itemInHandIntoFridge,
+    });
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
 
   res.send(
     `${maxFoodPred.tagName} ${

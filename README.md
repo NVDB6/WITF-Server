@@ -8,6 +8,7 @@
         - `export PRED_KEY=<api_key>`
     1. Windows:
         - `set PRED_KEY=<api_key>`
+1. Download the Firebase secret key file from Slack and move into root directory
 1. Start server with:
     - `nodemon server.js` if in development
     - `node server.js` otherwise
