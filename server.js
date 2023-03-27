@@ -28,7 +28,7 @@ log4js.configure({
   categories: {
     default: {
       appenders: ["file", "out"],
-      level: "info",
+      level: "all",
       enableCallStack: true,
     },
   },
@@ -44,7 +44,7 @@ const predEndpoint =
 const predKey = process.env.PRED_KEY;
 
 const inHandClassifierProjID = "38cfb8e8-1637-4159-bd63-a51a33f010dc";
-const inHandClassifierIterName = "Iteration2";
+const inHandClassifierIterName = "Iteration3";
 
 const foodClassifierProjID = "9cbf7b7d-2aaf-4bd9-a24e-9ded611d4784";
 const foodClassifierIterName = "Iteration4";
@@ -111,6 +111,7 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   }
 
   let itemInHandPreds;
+  let iihClassifyTimeInSeconds = performance.now()
   try {
     itemInHandPreds = await Promise.all(
       [...handIntoFridge, ...handOutOfFridge].map((buf) =>
@@ -125,8 +126,8 @@ app.post("/upload-images", upload.any(), async (req, res) => {
     logger.error("Azure prediction failed: ", error.message);
     return res.status(500).send(error.message);
   }
-
-
+  iihClassifyTimeInSeconds = ((performance.now() - iihClassifyTime) / 1000).toFixed(3);
+  logger.info(`[PERFORMANCE][IIH][UID:${action_uid}] IIH Classify Time: ${iihClassifyTimeInSeconds} seconds`);
 
   const itemInHandIntoFridge = itemInHand(action_uid,
     itemInHandPreds.slice(0, FRAMES_PER_ACTION)
@@ -177,6 +178,7 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   // Classify the food item in hand
   const foodFrames = itemInHandIntoFridge ? handIntoFridge : handOutOfFridge;
   let foodPreds;
+  let foodClassifyTimeInSeconds = performance.now()
   try {
     foodPreds = await Promise.all(
       foodFrames.map((buf) =>
@@ -191,6 +193,8 @@ app.post("/upload-images", upload.any(), async (req, res) => {
     logger.error("Azure prediction failed: ", error.message);
     return res.status(500).send(error.message);
   }
+  foodClassifyTimeInSeconds = ((performance.now() - foodClassifyTimeInSeconds) / 1000).toFixed(3);
+  logger.info(`[PERFORMANCE][FOOD][UID:${action_uid}] Food Classify Time: ${foodClassifyTimeInSeconds} seconds`);
 
   foodPreds.forEach((foodPred) =>
     logger.info(`[RESULTS][FOOD][UID:${action_uid}] Food Predictions`, foodPred.predictions)
