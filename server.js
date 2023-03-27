@@ -44,10 +44,10 @@ const predEndpoint =
 const predKey = process.env.PRED_KEY;
 
 const inHandClassifierProjID = "38cfb8e8-1637-4159-bd63-a51a33f010dc";
-const inHandClassifierIterName = "Iteration3";
+const inHandClassifierIterName = "Iteration4";
 
 const foodClassifierProjID = "9cbf7b7d-2aaf-4bd9-a24e-9ded611d4784";
-const foodClassifierIterName = "Iteration4";
+const foodClassifierIterName = "Iteration5";
 
 const predictorCreds = new msRest.ApiKeyCredentials({
   inHeader: { "Prediction-key": predKey },
@@ -126,7 +126,7 @@ app.post("/upload-images", upload.any(), async (req, res) => {
     logger.error("Azure prediction failed: ", error.message);
     return res.status(500).send(error.message);
   }
-  iihClassifyTimeInSeconds = ((performance.now() - iihClassifyTime) / 1000).toFixed(3);
+  iihClassifyTimeInSeconds = ((performance.now() - iihClassifyTimeInSeconds) / 1000).toFixed(3);
   logger.info(`[PERFORMANCE][IIH][UID:${action_uid}] IIH Classify Time: ${iihClassifyTimeInSeconds} seconds`);
 
   const itemInHandIntoFridge = itemInHand(action_uid,
