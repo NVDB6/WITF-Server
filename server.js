@@ -150,7 +150,7 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   const time = new Date(parseInt(files[0].originalname.split("_")[1]) * 1000);
   const representativeImage = itemInHandIntoFridge
     ? handIntoFridge[0]
-    : handOutOfFridge[-1];
+    : handOutOfFridge[handOutOfFridge.length - 1];
 
   let expireTime = new Date();
   expireTime.setDate(expireTime.getDate() + 7);
