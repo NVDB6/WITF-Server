@@ -6,6 +6,7 @@ const msRest = require("@azure/ms-rest-js");
 // const admin = require("firebase-admin");
 const { initializeApp, cert } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
+const { getStorage } = require("firebase-admin/storage");
 const serviceAccount = require("./witf-ba054-firebase-adminsdk-g073x-912889a8c9.json");
 
 const app = express();
@@ -13,8 +14,10 @@ const upload = multer();
 const port = 3000;
 const firebaseApp = initializeApp({
   credential: cert(serviceAccount),
+  storageBucket: "witf-ba054.appspot.com",
 });
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 // Configure log4js to write to a file called log.txt
 log4js.configure({
@@ -41,7 +44,7 @@ const predEndpoint =
 const predKey = process.env.PRED_KEY;
 
 const inHandClassifierProjID = "38cfb8e8-1637-4159-bd63-a51a33f010dc";
-const inHandClassifierIterName = "Iteration1";
+const inHandClassifierIterName = "Iteration2";
 
 const foodClassifierProjID = "9cbf7b7d-2aaf-4bd9-a24e-9ded611d4784";
 const foodClassifierIterName = "Iteration4";
@@ -81,11 +84,11 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   const files = req.files;
 
   if (files.length !== FRAMES_PER_ACTION * 2) {
-    logger.error(
-      `Invalid number of images passed to the upload-images endpoint: expected ${
-        FRAMES_PER_ACTION * 2
-      }, got ${files.length}`
-    );
+    const errMsg = `Invalid number of images passed to the upload-images endpoint: expected ${
+      FRAMES_PER_ACTION * 2
+    }, got ${files.length}`;
+    logger.error(errMsg);
+    return res.status(500).send(errMsg);
   }
 
   const { IN: handIntoFridge, OUT: handOutOfFridge } = files.reduce(
@@ -96,6 +99,15 @@ app.post("/upload-images", upload.any(), async (req, res) => {
     },
     { IN: [], OUT: [] }
   );
+
+  if (
+    handIntoFridge.length !== FRAMES_PER_ACTION ||
+    handOutOfFridge.length !== FRAMES_PER_ACTION
+  ) {
+    const errMsg = `Invalid number of images passed to the upload-images endpoint: expected ${FRAMES_PER_ACTION} of each, got Into-Fridge: ${handIntoFridge.length}, Out-Of-Fridge: ${handIntoFridge.length}`;
+    logger.error(errMsg);
+    return res.status(500).send(errMsg);
+  }
 
   let itemInHandPreds;
   try {
@@ -135,6 +147,30 @@ app.post("/upload-images", upload.any(), async (req, res) => {
       );
   }
 
+  const time = new Date(parseInt(files[0].originalname.split("_")[1]) * 1000);
+  const representativeImage = itemInHandIntoFridge
+    ? handIntoFridge[0]
+    : handOutOfFridge[-1];
+
+  let expireTime = new Date();
+  expireTime.setDate(expireTime.getDate() + 7);
+
+  let url;
+  try {
+    await storage
+      .bucket()
+      .file(`${time.getTime().toString()}.png`)
+      .save(representativeImage);
+    const urls = await storage
+      .bucket()
+      .file(`${time.getTime().toString()}.png`)
+      .getSignedUrl({ action: "read", expires: expireTime });
+    url = urls[0];
+  } catch (error) {
+    logger.error("Firebase image upload failed: ", error.message);
+    return res.status(500).send(error.message);
+  }
+
   // Classify the food item in hand
   const foodFrames = itemInHandIntoFridge ? handIntoFridge : handOutOfFridge;
   let foodPreds;
@@ -167,8 +203,6 @@ app.post("/upload-images", upload.any(), async (req, res) => {
     { probability: 0, tagName: "" }
   );
 
-  const time = new Date(parseInt(files[0].originalname.split("_")[1]) * 1000);
-
   logger.info(
     `${maxFoodPred.tagName} ${
       itemInHandIntoFridge ? "placed in" : "taken out of"
@@ -182,6 +216,7 @@ app.post("/upload-images", upload.any(), async (req, res) => {
       timeAction: time,
       itemName: maxFoodPred.tagName,
       intoFridge: itemInHandIntoFridge,
+      imageUrl: url,
     });
   } catch (error) {
     return res.status(500).send(error.message);
