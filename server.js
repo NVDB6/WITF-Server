@@ -64,19 +64,19 @@ app.get("/", (req, res) => {
 
 // Classifies if there is an item in hand when the hand is going in the fridge, and out of the fridge
 // A value of true in the return value indicates
-const itemInHand = (itemInHandPreds) => {
+const itemInHand = (action_uid, itemInHandPreds) => {
   let predValues = { Empty: [], "Non-empty": [] };
   itemInHandPreds.forEach((framePred) =>
     framePred.predictions.forEach((pred) =>
       predValues[pred.tagName].push(pred.probability)
     )
   );
-  logger.debug("IIH Predictions", predValues);
+  logger.debug(`[RESULTS][UID:${action_uid}] IIH Predictions`, predValues);
   let maxPredValues = { Empty: 0, "Non-empty": 0 };
   Object.keys(maxPredValues).forEach(
     (key) => (maxPredValues[key] = Math.max(...predValues[key]))
   );
-  logger.debug("IIH Max Predictions", maxPredValues);
+  logger.info(`[RESULTS][UID:${action_uid}] IIH Max Predictions`, maxPredValues);
   return maxPredValues["Non-empty"] > maxPredValues["Empty"];
 };
 
@@ -84,9 +84,8 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   const files = req.files;
 
   if (files.length !== FRAMES_PER_ACTION * 2) {
-    const errMsg = `Invalid number of images passed to the upload-images endpoint: expected ${
-      FRAMES_PER_ACTION * 2
-    }, got ${files.length}`;
+    const errMsg = `Invalid number of images passed to the upload-images endpoint: expected ${FRAMES_PER_ACTION * 2
+      }, got ${files.length}`;
     logger.error(errMsg);
     return res.status(500).send(errMsg);
   }
@@ -99,6 +98,8 @@ app.post("/upload-images", upload.any(), async (req, res) => {
     },
     { IN: [], OUT: [] }
   );
+
+  const action_uid = files[0].originalname.split("_")[2]
 
   if (
     handIntoFridge.length !== FRAMES_PER_ACTION ||
@@ -125,20 +126,22 @@ app.post("/upload-images", upload.any(), async (req, res) => {
     return res.status(500).send(error.message);
   }
 
-  const itemInHandIntoFridge = itemInHand(
+
+
+  const itemInHandIntoFridge = itemInHand(action_uid,
     itemInHandPreds.slice(0, FRAMES_PER_ACTION)
   );
-  const itemInHandOutOfFridge = itemInHand(
+  const itemInHandOutOfFridge = itemInHand(action_uid,
     itemInHandPreds.slice(FRAMES_PER_ACTION, -1)
   );
 
-  logger.debug(
-    `IIH IN: ${itemInHandIntoFridge}  |  IIH OUT: ${itemInHandOutOfFridge}`
+  logger.info(
+    `[RESULTS][UID:${action_uid}] IIH for uid:  \nIN: ${itemInHandIntoFridge}\nIIH OUT: ${itemInHandOutOfFridge}`
   );
 
   if (itemInHandIntoFridge === itemInHandOutOfFridge) {
     logger.error(
-      `IIH Classification is the same for both actions: ${itemInHandIntoFridge}`
+      `[UID:${action}] IIH Classification is the same for both actions: ${itemInHandIntoFridge}`
     );
     return res
       .status(500)
@@ -190,22 +193,21 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   }
 
   foodPreds.forEach((foodPred) =>
-    logger.debug("Food Prediction", foodPred.predictions)
+    logger.info(`[RESULTS][UID:${action_uid}] Food Predictions ${foodPred.predictions}`)
   );
   const maxFoodPred = foodPreds.reduce(
     (prev, current) =>
       current.predictions[0].probability > prev.probability
         ? {
-            probability: current.predictions[0].probability,
-            tagName: current.predictions[0].tagName,
-          }
+          probability: current.predictions[0].probability,
+          tagName: current.predictions[0].tagName,
+        }
         : prev,
     { probability: 0, tagName: "" }
   );
 
   logger.info(
-    `${maxFoodPred.tagName} ${
-      itemInHandIntoFridge ? "placed in" : "taken out of"
+    `[RESULTS][UID:${action_uid}][FINAL] ${maxFoodPred.tagName} ${itemInHandIntoFridge ? "placed in" : "taken out of"
     } fridge at ${time.toISOString()}`
   );
 
@@ -223,8 +225,7 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   }
 
   res.send(
-    `${maxFoodPred.tagName} ${
-      itemInHandIntoFridge ? "placed in" : "taken out of"
+    `${maxFoodPred.tagName} ${itemInHandIntoFridge ? "placed in" : "taken out of"
     } fridge with probability ${maxFoodPred.probability}`
   );
 });
