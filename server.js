@@ -71,12 +71,12 @@ const itemInHand = (action_uid, itemInHandPreds) => {
       predValues[pred.tagName].push(pred.probability)
     )
   );
-  logger.debug(`[RESULTS][UID:${action_uid}] IIH Predictions`, predValues);
+  logger.debug(`[RESULTS][IIH][UID:${action_uid}] IIH Individual Predictions`, predValues);
   let maxPredValues = { Empty: 0, "Non-empty": 0 };
   Object.keys(maxPredValues).forEach(
     (key) => (maxPredValues[key] = Math.max(...predValues[key]))
   );
-  logger.info(`[RESULTS][UID:${action_uid}] IIH Max Predictions`, maxPredValues);
+  logger.info(`[RESULTS][IIH][UID:${action_uid}] IIH Max Predictions`, maxPredValues);
   return maxPredValues["Non-empty"] > maxPredValues["Empty"];
 };
 
@@ -92,7 +92,7 @@ app.post("/upload-images", upload.any(), async (req, res) => {
 
   const { IN: handIntoFridge, OUT: handOutOfFridge } = files.reduce(
     (result, element) => {
-      logger.debug(`Collecting image: ${element.originalname}`);
+      logger.debug(`[RECIEVING IMAGES]: ${element.originalname}`);
       result[element.originalname.split("_")[3]].push(element.buffer);
       return result;
     },
@@ -136,12 +136,12 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   );
 
   logger.info(
-    `[RESULTS][UID:${action_uid}] IIH for uid:  \nIN: ${itemInHandIntoFridge}\nIIH OUT: ${itemInHandOutOfFridge}`
+    `[RESULTS][IIH][UID:${action_uid}][FINAL] Item in hand going in: ${itemInHandIntoFridge} ||| Item in hand going out: ${itemInHandOutOfFridge}`
   );
 
   if (itemInHandIntoFridge === itemInHandOutOfFridge) {
     logger.error(
-      `[UID:${action}] IIH Classification is the same for both actions: ${itemInHandIntoFridge}`
+      `[ERROR][IIH][UID:${action_uid}] IIH Classification is the same for both actions: ${itemInHandIntoFridge}`
     );
     return res
       .status(500)
@@ -193,7 +193,7 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   }
 
   foodPreds.forEach((foodPred) =>
-    logger.info(`[RESULTS][UID:${action_uid}] Food Predictions ${foodPred.predictions}`)
+    logger.info(`[RESULTS][FOOD][UID:${action_uid}] Food Predictions`, foodPred.predictions)
   );
   const maxFoodPred = foodPreds.reduce(
     (prev, current) =>
