@@ -10,7 +10,7 @@ const inHandClassifierProjID = "38cfb8e8-1637-4159-bd63-a51a33f010dc";
 const inHandClassifierIterName = "Iteration4";
 
 const foodClassifierProjID = "9cbf7b7d-2aaf-4bd9-a24e-9ded611d4784";
-const foodClassifierIterName = "Iteration8";
+const foodClassifierIterName = "Iteration9";
 
 const predictorCreds = new msRest.ApiKeyCredentials({
     inHeader: { "Prediction-key": predKey },

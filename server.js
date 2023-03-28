@@ -40,6 +40,8 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   const { handIntoFridge, handOutOfFridge } = receiveImages(files);
   const action_uid = getActionUid(files[0])
 
+  logger.info(`[RECIEVED IMAGES] For ${action_uid}`);
+
   if (
     handIntoFridge.length !== FRAMES_PER_ACTION ||
     handOutOfFridge.length !== FRAMES_PER_ACTION
@@ -57,16 +59,16 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   );
   const [itemInHandOutOfFridge, outProb] = isItemInHand(
     action_uid,
-    itemInHandPreds.slice(FRAMES_PER_ACTION, -1)
+    itemInHandPreds.slice(-FRAMES_PER_ACTION)
   );
 
   logger.info(
-    `[RESULTS][IIH][UID:${action_uid}][FINAL] Item ${itemInHandIntoFridge ? "going into the fridge" : "going out of the fridge"}`
+    `[RESULTS][IIH][UID: ${action_uid}][FINAL] Item ${itemInHandIntoFridge ? "going into the fridge" : "going out of the fridge"}`
   );
 
   if (itemInHandIntoFridge === itemInHandOutOfFridge) {
     logger.error(
-      `[ERROR][IIH][UID:${action_uid}] IIH Classification is the same for both actions: ${itemInHandIntoFridge ? "IN" : "OUT"}"`
+      `[ERROR][IIH][UID: ${action_uid}] IIH Classification is the same for both actions: ${itemInHandIntoFridge ? "NON-EMPTY" : "EMPTY"}"`
     );
     return res
       .status(500)
@@ -107,7 +109,7 @@ app.post("/upload-images", upload.any(), async (req, res) => {
 
   foodPreds.forEach((foodPred) =>
     logger.info(
-      `[RESULTS][FOOD][UID:${action_uid}] Food Predictions`,
+      `[RESULTS][FOOD][UID: ${action_uid}] Food Predictions`,
       foodPred.predictions
     )
   );
@@ -115,7 +117,7 @@ app.post("/upload-images", upload.any(), async (req, res) => {
   const maxFoodPred = getMaxFoodPred(foodPreds);
 
   logger.info(
-    `[RESULTS][UID:${action_uid}][FINAL] ${maxFoodPred.tagName} ${itemInHandIntoFridge ? "placed in" : "taken out of"
+    `[RESULTS][UID: ${action_uid}][FINAL] ${maxFoodPred.tagName} ${itemInHandIntoFridge ? "placed in" : "taken out of"
     } fridge at ${time.toISOString()}`
   );
 
