@@ -102,3 +102,9 @@ dist
 
 # TernJS port file
 .tern-port
+
+
+# Project Specific
+*.DS_Store
+/dataset_dup
+witf-ba054-firebase-adminsdk-g073x-912889a8c9.json
